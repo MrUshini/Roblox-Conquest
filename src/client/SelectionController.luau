@@ -6,7 +6,7 @@ local SelectBattlegroupRemoteEvent =
 
 local ClientState = require(script.Parent.ClientState)
 
-function SelectionController:SetSelectedGroup(battlegroupBody: Model)
+function SelectionController:SetSelectedGroup(battlegroupBody: Model) : ()
 	local previous = ClientState.SelectedBattlegroupId :: number?
 
 	if previous then
@@ -21,10 +21,9 @@ function SelectionController:SetSelectedGroup(battlegroupBody: Model)
 	end
 
 	local groupId = battlegroupBody:GetAttribute("id")
-	PinController:MakeVisible(groupId)
 end
 
-function SelectionController:ClearSelectedGroup()
+function SelectionController:ClearSelectedGroup() : ()
 	local selectedGroupId = ClientState.SelectedBattlegroupId
 
 	if not selected then

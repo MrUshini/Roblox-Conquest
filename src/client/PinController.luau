@@ -1,11 +1,15 @@
+local SelectBattlegroupRemoteEvent = game.ReplicatedStorage.Shared.RemoteEvents:WaitForChild("SelectBattlegroup") :: RemoteEvent
+
+
+
 local PinController = {}
 
-type PinInfo = {
+type TPinInfo = {
 	pinModel: Model?,
 	pinPos: Vector3?
 }
 
-local pins: {PinInfo} = {}
+local pins = {} :: {[number]: TPinInfo}
 
 local pinTempalte = game.ReplicatedStorage.Assests.pinTemplate
 local SetPin = game.ReplicatedStorage.RemoteEvents.SetPin
@@ -59,5 +63,11 @@ end
 PinReached.OnClientEvent:Connect(function(groupId)
 	PinController:Remove(groupId)
 end)
+
+SelectBattlegroupRemoteEvent.OnClientEvent:Connect(function(battlegroupBody: Model) -- One of multiple actions at group selection
+	local battlegroupID = battlegroupBody:GetAttribute("id") :: number
+	PinController:MakeVisible(battlegroupID)
+end)
+
 
 return PinController
