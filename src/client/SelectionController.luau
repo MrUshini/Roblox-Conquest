@@ -43,8 +43,8 @@ function SelectionController:ClearSelectedGroup() : ()
 	end
 end
 
-function SelectionController:GetSelectedGroup(): Model?
-	return ClientState.SelectedBattlegroup
+function SelectionController:GetSelectedGroup(): number
+	return ClientState.SelectedBattlegroupId
 end
 
 SelectBattlegroupRemoteEvent.OnClientEvent:Connect(function(battlegroupBody: Model)

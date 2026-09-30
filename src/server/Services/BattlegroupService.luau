@@ -1,5 +1,11 @@
 local BattlegroupModule = require(game.ServerScriptService.Server.Classes.Battlegroup)
 type TBattlegroupInstance = BattlegroupModule.BattlegroupInstance
+
+local BattlegroupTemplateModule = require(game.ReplicatedStorage.Shared.ClassTypes.BattlegroupTemplate)
+type TBattlegroupTemplate = BattlegroupTemplateModule.BattlegroupTemplate
+
+local BattlegroupBodyTemplate = game.ServerStorage:WaitForChild("Assests"):WaitForChild("BattlegroupBody") :: Model
+
 local SetPin = game.ReplicatedStorage.RemoteEvents.SetPin
 local PinReached = game.ReplicatedStorage.RemoteEvents.PinReached
 local RunService = game:GetService("RunService")
@@ -10,8 +16,12 @@ local Players = game:GetService("Players")
 local TESTSPEED = 5
 -- TEST
 
-local groupNumber = 0
+-- Config
+local BattlegroupBodyHeight = 11 :: number
+local workspaceBattlegroupsFolder = workspace.Entities.Battlegroups
+-- Config
 
+local groupNumber = 0
 local BattlegroupService = {}
 
 
@@ -28,56 +38,76 @@ type TBattlegroupDict = { [number]: TBattlegroupInstance }
 
 local BattlegroupDict = {} :: TBattlegroupDict
 
-function BattlegroupService:AddBattlegroup(battlegroupBody: Model)
-	-- Set Attributes
+function BattlegroupService.CreateBattlegroupModel(position: Vector2) : Model
+	local battlegroupBody = BattlegroupBodyTemplate:Clone() :: Model
+
+	local position3d = Vector3.new(position.X, BattlegroupBodyHeight, position.Y) :: Vector3
+	battlegroupBody:PivotTo(CFrame.new(position3d))
 	battlegroupBody:SetAttribute("id", groupNumber)
 	battlegroupBody:SetAttribute("primary_color", Color3.fromRGB(0, 180, 255))
 	battlegroupBody:SetAttribute("outline_color", Color3.fromRGB(85, 255, 255))
-	
-	local localplayer = Players:GetPlayers()[1]
 
-	if not localplayer then
-		localplayer = Players.PlayerAdded:Wait()
-	end
-	
-	-- Add to the table AND increment the group number
-	BattlegroupDict[groupNumber] = battle
-	groupNumber += 1
+	battlegroupBody.Parent = workspaceBattlegroupsFolder
+
+	return battlegroupBody
 end
 
-function BattlegroupService.Attack(attacker, victim)
+function BattlegroupService.CreateBattlegroup(
+	ownerId: number,
+	template: TBattlegroupTemplate,
+	position: Vector2
+) : TBattlegroupInstance
+
+	local battlegroupBody = BattlegroupService.CreateBattlegroupModel(position) :: Model
+	local battlegroupInstance = BattlegroupModule.new(ownerId, template, battlegroupBody) :: TBattlegroupInstance
+
+	BattlegroupDict[groupNumber] = battlegroupInstance
+	groupNumber += 1
+
+	return battlegroupInstance
+end
+
+function BattlegroupService.Attack(attacker, victim) : ()
 	local text = string.format("%s", attacker.Name)
+end
+
+function BattlegroupService:GetBattlegroupInstance(id: number) : TBattlegroupInstance?
+	return BattlegroupDict[id]
 end
 
 SetPin.OnServerEvent:Connect(function(player, battlegroupID: number, position: Vector3)
 	print("Received")
-	BattlegroupService.BattlegroupStates[battlegroupID].pinPos = position
+	local battlegroupInstance = BattlegroupService:GetBattlegroupInstance(battlegroupID)
+	battlegroupInstance:ChangeDestination(position)
 end)
 
 function BattlegroupService.MoveGroupTowardsPin(groupId: number)
 	--print("Pos: "..module.BattlegroupStates[groupId])
-	if not BattlegroupService.BattlegroupStates[groupId] then return end	
-	if not BattlegroupService.BattlegroupStates[groupId].pinPos then return end
+	local battlegroupInstance = BattlegroupService:GetBattlegroupInstance(groupId)
+
+	if not battlegroupInstance then return end	
+	if not battlegroupInstance.Destination then return end
 	
-	local groupModel = BattlegroupService.BattlegroupStates[groupId].groupModel
-	local direction = (BattlegroupService.BattlegroupStates[groupId].pinPos - BattlegroupService.BattlegroupStates[groupId].groupModel:GetPivot().Position).Unit
-	local distance = (BattlegroupService.BattlegroupStates[groupId].pinPos - BattlegroupService.BattlegroupStates[groupId].groupModel:GetPivot().Position).Magnitude
+	local groupBody = battlegroupInstance.Body :: Model
+	local destination = battlegroupInstance.Destination :: Vector3
+
+	local direction = (destination - groupBody:GetPivot().Position).Unit
+	local distance = (destination - groupBody:GetPivot().Position).Magnitude
 	local speed = TESTSPEED
 	local moveStep = direction * speed * RunService.Heartbeat:Wait()
 	moveStep = Vector3.new(moveStep.X, 0, moveStep.Z)
 	
 	-- Final Step
 	if distance < moveStep.magnitude then
-		local targetPos = BattlegroupService.BattlegroupStates[groupId].pinPos
-		local currentPivot = groupModel:GetPivot()
+		local currentPivot = groupBody:GetPivot()
 		local currentRotation = currentPivot.Rotation
-		groupModel:PivotTo(CFrame.new(targetPos) * currentRotation)
-		BattlegroupService.BattlegroupStates[groupId].pinPos = nil
-		PinReached:FireClient(BattlegroupService.BattlegroupStates[groupId].owner, groupId)
+		groupBody:PivotTo(CFrame.new(destination) * currentRotation)
+		battlegroupInstance.Destination = nil
+		PinReached:FireClient(battlegroupInstance.owner, groupId)
 		return
 	end
 	
-	groupModel:PivotTo(groupModel:GetPivot() + moveStep)
+	groupBody:PivotTo(groupBody:GetPivot() + moveStep)
 end
 
 function BattlegroupService.ActivateMovement()

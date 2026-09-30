@@ -19,24 +19,23 @@ export type BattlegroupInstance = typeof(setmetatable({} ::
 			OwnerId: number,
 			Template: BattlegroupTemplate,
 			Units: {UnitInstance},
-			Body: Model?
+			Body: Model?,
+			Destination: Vector3?
 		},
 		Battlegroup
 	)
 )
 
-function Battlegroup.new(ownerId: number, template: BattlegroupTemplate)
+function Battlegroup.new(ownerId: number, template: BattlegroupTemplate, body: Model)
 	assert(template ~= nil, "Battlegroup.new: Template is nil")
 	local self = {
 		OwnerId = ownerId,
 		Template = template,
 		Units = {} :: {UnitInstance},
-		Body = nil :: Model?
+		Body = body :: Model,
+		Destination = nil :: Vector3?
 	}
-	setmetatable(self, Battlegroup) -- Linking all missing attributes and methods of self to Battlegroup
-	
-	self.OwnerId = ownerId
-	self.Template = template
+	setmetatable(self, Battlegroup) -- Linking all missing attributes and methods of self to Battlegroup	
 	self.Units = self:InitUnits()
 	
 	return self
@@ -65,6 +64,10 @@ function Battlegroup.UnitsAlive(self: BattlegroupInstance) : {UnitInstance}
 		end
 	end
 	return aliveUnits
+end
+
+function Battlegroup:ChangeDestination(position: Vector3) : ()
+	self.Destination = position
 end
 
 return Battlegroup
