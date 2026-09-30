@@ -1,6 +1,5 @@
+local ClientState = require(script.Parent.ClientState)
 local SelectBattlegroupRemoteEvent = game.ReplicatedStorage.Shared.RemoteEvents:WaitForChild("SelectBattlegroup") :: RemoteEvent
-
-
 
 local PinController = {}
 
@@ -58,6 +57,11 @@ end
 function PinController:Hide(battlegroupID: number)
 	local pinModel: Model = pins[battlegroupID].pinModel
 	pinModel:PivotTo(CFrame.new(HIDDEN_POS))
+end
+
+-- Temporary Function, Until "HideAll" wont be added with feature of multiple groups being selected
+function PinController:HideSelected() : ()
+	PinController:Hide(ClientState.SelectedBattlegroupId)
 end
 
 PinReached.OnClientEvent:Connect(function(groupId)

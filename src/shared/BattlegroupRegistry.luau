@@ -20,4 +20,13 @@ function BattlegroupRegistry:GetGroupData(id: number) : TGroupData?
     return entries[id]
 end
 
+function BattlegroupRegistry:GetGroupModel(id: number) : Model?
+    local groupData = entries[id]
+    if not groupData then
+        print("Group data couldnt be found")
+        return
+    end
+    return groupData.model
+end
+
 return BattlegroupRegistry

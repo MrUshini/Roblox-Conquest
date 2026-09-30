@@ -1,4 +1,5 @@
--- SelectionController ModuleScript
+local BattlegroupRegistry = require(game.ReplicatedStorage.Shared.BattlegroupRegistry)
+type TGroupData = BattlegroupRegistry.TGroupData
 
 local SelectionController = {}
 local SelectBattlegroupRemoteEvent =
@@ -25,23 +26,21 @@ end
 
 function SelectionController:ClearSelectedGroup() : ()
 	local selectedGroupId = ClientState.SelectedBattlegroupId
-
-	if not selected then
+	if not selectedGroupId then
+		return -- No Group to clear
+	end
+	local model = BattlegroupRegistry:GetGroupModel(selectedGroupId) :: Model?
+	if not model then
+		print("Model couldnt be found")
 		return
 	end
 
-	local selected = 
-	local outline = selected:FindFirstChild("Outline")
-	local originalColor = selected:GetAttribute("outline_color")
+	local outline = model:FindFirstChild("Outline")
+	local originalColor = model:GetAttribute("outline_color")
 
 	if outline and outline:IsA("BasePart") then
 		outline.Color = originalColor
 	end
-
-	local groupId = selected:GetAttribute("id")
-
-	ClientState.SelectedBattlegroup = nil
-	ClientState.SelectedUnitId = nil
 end
 
 function SelectionController:GetSelectedGroup(): Model?

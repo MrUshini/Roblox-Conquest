@@ -68,8 +68,9 @@ UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
 	
 	-- Clearing Selected Group
 	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		PinController:Hide(groupId)
+		PinController:HideSelected()
 		SelectionController:ClearSelectedGroup()
+		ClientState:ClearStates()
 		print("Selected Cleared")
 	end
 	
