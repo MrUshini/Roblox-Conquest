@@ -1,4 +1,3 @@
-local Selection = game:GetService("Selection")
 local UserInputService = game:GetService("UserInputService")
 local ClientState = require(script.Parent:WaitForChild("ClientState"))
 local SelectionController = require(script.Parent:WaitForChild("SelectionController"))

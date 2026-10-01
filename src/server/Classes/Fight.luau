@@ -57,49 +57,14 @@ function Fight.new(group1: Battlegroup, group2: Battlegroup, startDistance: numb
 	return fight
 end
 
-function Fight.InitUnitStates(self: FightInstance) : {[UnitInstance]: {position: number}}
-	local unitStates = {}
-	for _, group in ipairs({ self.Group1, self.Group2 }) do
-		for _, unit in ipairs(group.Units) do
-			unitStates[unit] = {
-				position = 
-			}
-		end
-	end
-	return unitStates	
-end
-
-function Fight.InitUnitPositions(self: FightInstance, group: Battlegroup)
-	local Formation = group.Formation
-	local unitStates = self.UnitStates
-	
-	
-	local offest = 2
-		
-	if (Formation == "Dense") then
-
-	else if (Formation == "Sparse") then
-	
-	else if (Formation == "Line") then
-	else
-		error("Invalid Formation type: " .. Formation)
-			end
-			
-	for _, unit in ipairs(group.Units) do -- Iterating
-		unitStates[unit] = {
-			position = 
-		}
-	end
-end
-
 function Fight.InitFightConnection(self: FightInstance)
 	return RunService.Heartbeat:Connect(function(deltaTime: number) 
-		if (not self.Running) then
+		if not self.Running then
 			return
 		end
 		while true do
 			local currentTime = workspace:GetServerTimeNow()
-			if (currentTime < self:NextShootTiming().NextShotTime) then break end
+			if currentTime < self:NextShootTiming().NextShotTime then break end
 			local popTiming = true
 			local nextShootTiming = self:NextShootTiming(popTiming)
 			self:PerformAttack(nextShootTiming)
@@ -136,7 +101,7 @@ end
 function Fight.NextShootTiming(self: FightInstance, pop: boolean?): ShootTiming
 	pop = pop or false
 	local first = self.ShootTimings[1]
-	if (pop) then
+	if pop then
 		table.remove(self.ShootTimings, 1)
 	end
 	assert(first ~= nil, "No shoot timings available")
@@ -167,7 +132,7 @@ function Fight.PerformAttack(self: FightInstance, shootTiming: ShootTiming)
 	local attacker = shootTiming.Unit
 	local victimNumber = attacker.ActiveWeapon.weaponData.VictimNumber
 	local victims = self:GetVictims(attacker, victimNumber)
-	if (victims == nil or #victims == 0) then return nil end
+	if victims == nil or #victims == 0 then return nil end
 	for _, victim in ipairs(victims) do
 		attacker:Attack(victim)
 	end
@@ -193,18 +158,17 @@ function Fight.GetVictims(self: FightInstance, attacker: UnitInstance, victimNum
 	local unitsChosen = 0
 	for _, group in ipairs({ self.Group1, self.Group2 }) do
 		if group.OwnerId == attackerOwnerId then 
-			local text = string.format("Group %s is of the same owner as attacker %s", group.Template.Name, attacker.Data.Name)
-			print(text)
 			continue
 		end
-		if #group:UnitsAlive() > 0 then
-			local text = string.format("Group %s has %d units alive", group.Template.Name, #group:UnitsAlive())
-			for _, unit in ipairs(group:UnitsAlive()) do
-				table.insert(victims, unit)
-				local text = string.format("Unit %s was added to group %s", unit.Data.Name, group.Template.Name)
-				unitsChosen += 1
-				if unitsChosen == victimNumber then return victims end
-			end
+		if #group:UnitsAlive() == 0 then
+			 continue
+		end 
+		local text = string.format("Group %s has %d units alive", group.Template.Name, #group:UnitsAlive())
+		for _, unit in ipairs(group:UnitsAlive()) do
+			table.insert(victims, unit)
+			local text = string.format("Unit %s was added to group %s", unit.Data.Name, group.Template.Name)
+			unitsChosen += 1
+			if unitsChosen == victimNumber then return victims end
 		end
 	end
 	

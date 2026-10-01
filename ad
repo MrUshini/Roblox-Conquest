@@ -1,0 +1,279 @@
+[33mcommit e17b470c83f11459085f0d5897bed7b5c2d4ff16[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m
+Author: MrUshini <Dmytro.Bondarenko@outlook.com>
+Date:   Wed Sep 30 03:24:48 2026 +0200
+
+    Refactor: Fixing Battlegroup Service readability + errors
+    
+    Adding CreateBattlegroupMethod in Battlegroup Service
+    
+    Other minor updates
+
+[1mdiff --git a/src/client/SelectionController.luau b/src/client/SelectionController.luau[m
+[1mindex 84f6837..5c570ba 100644[m
+[1m--- a/src/client/SelectionController.luau[m
+[1m+++ b/src/client/SelectionController.luau[m
+[36m@@ -43,8 +43,8 @@[m [mfunction SelectionController:ClearSelectedGroup() : ()[m
+ 	end[m
+ end[m
+ [m
+[31m-function SelectionController:GetSelectedGroup(): Model?[m
+[31m-	return ClientState.SelectedBattlegroup[m
+[32m+[m[32mfunction SelectionController:GetSelectedGroup(): number[m
+[32m+[m	[32mreturn ClientState.SelectedBattlegroupId[m
+ end[m
+ [m
+ SelectBattlegroupRemoteEvent.OnClientEvent:Connect(function(battlegroupBody: Model)[m
+[1mdiff --git a/src/server/Classes/Battlegroup.luau b/src/server/Classes/Battlegroup.luau[m
+[1mindex 99bd8a6..d805b08 100644[m
+[1m--- a/src/server/Classes/Battlegroup.luau[m
+[1m+++ b/src/server/Classes/Battlegroup.luau[m
+[36m@@ -19,24 +19,23 @@[m [mexport type BattlegroupInstance = typeof(setmetatable({} ::[m
+ 			OwnerId: number,[m
+ 			Template: BattlegroupTemplate,[m
+ 			Units: {UnitInstance},[m
+[31m-			Body: Model?[m
+[32m+[m			[32mBody: Model?,[m
+[32m+[m			[32mDestination: Vector3?[m
+ 		},[m
+ 		Battlegroup[m
+ 	)[m
+ )[m
+ [m
+[31m-function Battlegroup.new(ownerId: number, template: BattlegroupTemplate)[m
+[32m+[m[32mfunction Battlegroup.new(ownerId: number, template: BattlegroupTemplate, body: Model)[m
+ 	assert(template ~= nil, "Battlegroup.new: Template is nil")[m
+ 	local self = {[m
+ 		OwnerId = ownerId,[m
+ 		Template = template,[m
+ 		Units = {} :: {UnitInstance},[m
+[31m-		Body = nil :: Model?[m
+[32m+[m		[32mBody = body :: Model,[m
+[32m+[m		[32mDestination = nil :: Vector3?[m
+ 	}[m
+[31m-	setmetatable(self, Battlegroup) -- Linking all missing attributes and methods of self to Battlegroup[m
+[31m-	[m
+[31m-	self.OwnerId = ownerId[m
+[31m-	self.Template = template[m
+[32m+[m	[32msetmetatable(self, Battlegroup) -- Linking all missing attributes and methods of self to Battlegroup[m[41m	[m
+ 	self.Units = self:InitUnits()[m
+ 	[m
+ 	return self[m
+[36m@@ -67,4 +66,8 @@[m [mfunction Battlegroup.UnitsAlive(self: BattlegroupInstance) : {UnitInstance}[m
+ 	return aliveUnits[m
+ end[m
+ [m
+[32m+[m[32mfunction Battlegroup:ChangeDestination(position: Vector3) : ()[m
+[32m+[m	[32mself.Destination = position[m
+[32m+[m[32mend[m
+[32m+[m
+ return Battlegroup[m
+\ No newline at end of file[m
+[1mdiff --git a/src/server/Services/BattlegroupService.luau b/src/server/Services/BattlegroupService.luau[m
+[1mindex 680fe3d..e09d421 100644[m
+[1m--- a/src/server/Services/BattlegroupService.luau[m
+[1m+++ b/src/server/Services/BattlegroupService.luau[m
+[36m@@ -1,5 +1,11 @@[m
+ local BattlegroupModule = require(game.ServerScriptService.Server.Classes.Battlegroup)[m
+ type TBattlegroupInstance = BattlegroupModule.BattlegroupInstance[m
+[32m+[m
+[32m+[m[32mlocal BattlegroupTemplateModule = require(game.ReplicatedStorage.Shared.ClassTypes.BattlegroupTemplate)[m
+[32m+[m[32mtype TBattlegroupTemplate = BattlegroupTemplateModule.BattlegroupTemplate[m
+[32m+[m
+[32m+[m[32mlocal BattlegroupBodyTemplate = game.ServerStorage:WaitForChild("Assests"):WaitForChild("BattlegroupBody") :: Model[m
+[32m+[m
+ local SetPin = game.ReplicatedStorage.RemoteEvents.SetPin[m
+ local PinReached = game.ReplicatedStorage.RemoteEvents.PinReached[m
+ local RunService = game:GetService("RunService")[m
+[36m@@ -10,8 +16,12 @@[m [mlocal Players = game:GetService("Players")[m
+ local TESTSPEED = 5[m
+ -- TEST[m
+ [m
+[31m-local groupNumber = 0[m
+[32m+[m[32m-- Config[m
+[32m+[m[32mlocal BattlegroupBodyHeight = 11 :: number[m
+[32m+[m[32mlocal workspaceBattlegroupsFolder = workspace.Entities.Battlegroups[m
+[32m+[m[32m-- Config[m
+ [m
+[32m+[m[32mlocal groupNumber = 0[m
+ local BattlegroupService = {}[m
+ [m
+ [m
+[36m@@ -28,56 +38,76 @@[m [mtype TBattlegroupDict = { [number]: TBattlegroupInstance }[m
+ [m
+ local BattlegroupDict = {} :: TBattlegroupDict[m
+ [m
+[31m-function BattlegroupService:AddBattlegroup(battlegroupBody: Model)[m
+[31m-	-- Set Attributes[m
+[32m+[m[32mfunction BattlegroupService.CreateBattlegroupModel(position: Vector2) : Model[m
+[32m+[m	[32mlocal battlegroupBody = BattlegroupBodyTemplate:Clone() :: Model[m
+[32m+[m
+[32m+[m	[32mlocal position3d = Vector3.new(position.X, BattlegroupBodyHeight, position.Y) :: Vector3[m
+[32m+[m	[32mbattlegroupBody:PivotTo(CFrame.new(position3d))[m
+ 	battlegroupBody:SetAttribute("id", groupNumber)[m
+ 	battlegroupBody:SetAttribute("primary_color", Color3.fromRGB(0, 180, 255))[m
+ 	battlegroupBody:SetAttribute("outline_color", Color3.fromRGB(85, 255, 255))[m
+[31m-	[m
+[31m-	local localplayer = Players:GetPlayers()[1][m
+ [m
+[31m-	if not localplayer then[m
+[31m-		localplayer = Players.PlayerAdded:Wait()[m
+[31m-	end[m
+[31m-	[m
+[31m-	-- Add to the table AND increment the group number[m
+[31m-	BattlegroupDict[groupNumber] = battle[m
+[32m+[m	[32mbattlegroupBody.Parent = workspaceBattlegroupsFolder[m
+[32m+[m
+[32m+[m	[32mreturn battlegroupBody[m
+[32m+[m[32mend[m
+[32m+[m
+[32m+[m[32mfunction BattlegroupService.CreateBattlegroup([m
+[32m+[m	[32mownerId: number,[m
+[32m+[m	[32mtemplate: TBattlegroupTemplate,[m
+[32m+[m	[32mposition: Vector2[m
+[32m+[m[32m) : TBattlegroupInstance[m
+[32m+[m
+[32m+[m	[32mlocal battlegroupBody = BattlegroupService.CreateBattlegroupModel(position) :: Model[m
+[32m+[m	[32mlocal battlegroupInstance = BattlegroupModule.new(ownerId, template, battlegroupBody) :: TBattlegroupInstance[m
+[32m+[m
+[32m+[m	[32mBattlegroupDict[groupNumber] = battlegroupInstance[m
+ 	groupNumber += 1[m
+[32m+[m
+[32m+[m	[32mreturn battlegroupInstance[m
+ end[m
+ [m
+[31m-function BattlegroupService.Attack(attacker, victim)[m
+[32m+[m[32mfunction BattlegroupService.Attack(attacker, victim) : ()[m
+ 	local text = string.format("%s", attacker.Name)[m
+ end[m
+ [m
+[32m+[m[32mfunction BattlegroupService:GetBattlegroupInstance(id: number) : TBattlegroupInstance?[m
+[32m+[m	[32mreturn BattlegroupDict[id][m
+[32m+[m[32mend[m
+[32m+[m
+ SetPin.OnServerEvent:Connect(function(player, battlegroupID: number, position: Vector3)[m
+ 	print("Received")[m
+[31m-	BattlegroupService.BattlegroupStates[battlegroupID].pinPos = position[m
+[32m+[m	[32mlocal battlegroupInstance = BattlegroupService:GetBattlegroupInstance(battlegroupID)[m
+[32m+[m	[32mbattlegroupInstance:ChangeDestination(position)[m
+ end)[m
+ [m
+ function BattlegroupService.MoveGroupTowardsPin(groupId: number)[m
+ 	--print("Pos: "..module.BattlegroupStates[groupId])[m
+[31m-	if not BattlegroupService.BattlegroupStates[groupId] then return end	[m
+[31m-	if not BattlegroupService.BattlegroupStates[groupId].pinPos then return end[m
+[32m+[m	[32mlocal battlegroupInstance = BattlegroupService:GetBattlegroupInstance(groupId)[m
+[32m+[m
+[32m+[m	[32mif not battlegroupInstance then return end[m[41m	[m
+[32m+[m	[32mif not battlegroupInstance.Destination then return end[m
+ 	[m
+[31m-	local groupModel = BattlegroupService.BattlegroupStates[groupId].groupModel[m
+[31m-	local direction = (BattlegroupService.BattlegroupStates[groupId].pinPos - BattlegroupService.BattlegroupStates[groupId].groupModel:GetPivot().Position).Unit[m
+[31m-	local distance = (BattlegroupService.BattlegroupStates[groupId].pinPos - BattlegroupService.BattlegroupStates[groupId].groupModel:GetPivot().Position).Magnitude[m
+[32m+[m	[32mlocal groupBody = battlegroupInstance.Body :: Model[m
+[32m+[m	[32mlocal destination = battlegroupInstance.Destination :: Vector3[m
+[32m+[m
+[32m+[m	[32mlocal direction = (destination - groupBody:GetPivot().Position).Unit[m
+[32m+[m	[32mlocal distance = (destination - groupBody:GetPivot().Position).Magnitude[m
+ 	local speed = TESTSPEED[m
+ 	local moveStep = direction * speed * RunService.Heartbeat:Wait()[m
+ 	moveStep = Vector3.new(moveStep.X, 0, moveStep.Z)[m
+ 	[m
+ 	-- Final Step[m
+ 	if distance < moveStep.magnitude then[m
+[31m-		local targetPos = BattlegroupService.BattlegroupStates[groupId].pinPos[m
+[31m-		local currentPivot = groupModel:GetPivot()[m
+[32m+[m		[32mlocal currentPivot = groupBody:GetPivot()[m
+ 		local currentRotation = currentPivot.Rotation[m
+[31m-		groupModel:PivotTo(CFrame.new(targetPos) * currentRotation)[m
+[31m-		BattlegroupService.BattlegroupStates[groupId].pinPos = nil[m
+[31m-		PinReached:FireClient(BattlegroupService.BattlegroupStates[groupId].owner, groupId)[m
+[32m+[m		[32mgroupBody:PivotTo(CFrame.new(destination) * currentRotation)[m
+[32m+[m		[32mbattlegroupInstance.Destination = nil[m
+[32m+[m		[32mPinReached:FireClient(battlegroupInstance.owner, groupId)[m
+ 		return[m
+ 	end[m
+ 	[m
+[31m-	groupModel:PivotTo(groupModel:GetPivot() + moveStep)[m
+[32m+[m	[32mgroupBody:PivotTo(groupBody:GetPivot() + moveStep)[m
+ end[m
+ [m
+ function BattlegroupService.ActivateMovement()[m
+[1mdiff --git a/src/server/Services/CollectionService.luau b/src/server/Services/CollectionHandlers/ClickDetector.luau[m
+[1msimilarity index 79%[m
+[1mrename from src/server/Services/CollectionService.luau[m
+[1mrename to src/server/Services/CollectionHandlers/ClickDetector.luau[m
+[1mindex bb7ec09..8587103 100644[m
+[1m--- a/src/server/Services/CollectionService.luau[m
+[1m+++ b/src/server/Services/CollectionHandlers/ClickDetector.luau[m
+[36m@@ -1,10 +1,7 @@[m
+ local CollectionService = game:GetService("CollectionService")[m
+[31m-local BattlegroupService = require(game.ServerScriptService.Server.Services.BattlegroupService)[m
+ local SelectBattlegroupRemoteEvent = game.ReplicatedStorage.RemoteEvents.SelectBattlegroup[m
+ [m
+[31m-local function SetupBattlegroup(battlegroupBody)[m
+[31m-	BattlegroupService:AddBattlegroup(battlegroupBody)[m
+[31m-	[m
+[32m+[m[32mlocal function SetupClickDetector(battlegroupBody: Model) : ()[m
+ 	local clickDetector = battlegroupBody:FindFirstChild("ClickDetector")[m
+ 	if not clickDetector then[m
+ 		warn(battlegroupBody.Name .. " has no ClickDetector")[m
+[36m@@ -17,6 +14,10 @@[m [mlocal function SetupBattlegroup(battlegroupBody)[m
+ 	end)[m
+ end[m
+ [m
+[32m+[m[32mlocal function SetupBattlegroup(battlegroupBody: Model) : ()[m
+[32m+[m	[32mSetupClickDetector(battlegroupBody)[m
+[32m+[m[32mend[m
+[32m+[m
+ -- Existing battlegroups[m
+ for _, battlegroupBody in ipairs(CollectionService:GetTagged("Battlegroup")) do[m
+ 	SetupBattlegroup(battlegroupBody)[m
+[1mdiff --git a/src/server/Test/TestFight.luau b/src/server/Test/TestFight.luau[m
+[1mindex 50d18d5..2fc0f36 100644[m
+[1m--- a/src/server/Test/TestFight.luau[m
+[1m+++ b/src/server/Test/TestFight.luau[m
+[36m@@ -1,25 +1,25 @@[m
+[31m---!strict[m
+[32m+[m[32m-- --!strict[m
+ [m
+[31m--- Domain[m
+[31m-local Battlegroup = require(game.ServerScriptService.Server.Classes.Battlegroup)[m
+[31m-local Fight = require(game.ServerScriptService.Server.Classes.Fight)[m
+[32m+[m[32m-- -- Domain[m
+[32m+[m[32m-- local Battlegroup = require(game.ServerScriptService.Server.Classes.Battlegroup)[m
+[32m+[m[32m-- local Fight = require(game.ServerScriptService.Server.Classes.Fight)[m
+ [m
+[31m--- Content[m
+[31m-local TheAllianceGroups = require(game.ServerStorage.Content.Entities.GroupTemplates.the_alliance)[m
+[31m-local SkibidiGroups = require(game.ServerStorage.Content.Entities.GroupTemplates.skibidi)[m
+[32m+[m[32m-- -- Content[m
+[32m+[m[32m-- local TheAllianceGroups = require(game.ServerStorage.Content.Entities.GroupTemplates.the_alliance)[m
+[32m+[m[32m-- local SkibidiGroups = require(game.ServerStorage.Content.Entities.GroupTemplates.skibidi)[m
+ [m
+[31m-local Players = game:GetService("Players")[m
+[32m+[m[32m-- local Players = game:GetService("Players")[m
+ [m
+[31m--- Main[m
+[32m+[m[32m-- -- Main[m
+ [m
+[31m---local PlayerList = Players:GetPlayers()[m
+[31m-local player1 = 1[m
+[31m-local player2 = 2[m
+[32m+[m[32m-- --local PlayerList = Players:GetPlayers()[m
+[32m+[m[32m-- local player1 = 1[m
+[32m+[m[32m-- local player2 = 2[m
+ [m
+[31m-print("Same players: ", player1 == player2)[m
+[32m+[m[32m-- print("Same players: ", player1 == player2)[m
+ [m
+[31m-local group1 = Battlegroup.new(player1, TheAllianceGroups["3CameraMan"])[m
+[31m-local group2 = Battlegroup.new(player2, SkibidiGroups["2Toilets"])[m
+[32m+[m[32m-- local group1 = Battlegroup.new(player1, TheAllianceGroups["3CameraMan"])[m
+[32m+[m[32m-- local group2 = Battlegroup.new(player2, SkibidiGroups["2Toilets"])[m
+ [m
+[31m-local fight = Fight.new(group1, group2, 20)[m
+[31m-fight:StartFight()[m
+\ No newline at end of file[m
+[32m+[m[32m-- local fight = Fight.new(group1, group2, 20)[m
+[32m+[m[32m-- fight:StartFight()[m
+\ No newline at end of file[m

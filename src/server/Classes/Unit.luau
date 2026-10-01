@@ -8,7 +8,7 @@ local WeaponDataModule = require(game.ReplicatedStorage.Shared.ClassTypes.Weapon
 type WeaponData = WeaponDataModule.WeaponData
 
 local Weapon = require(game.ServerScriptService.Server.Classes.Weapon)
-type Weapon = Weapon.Weapon
+type Weapon = Weapon.TWeapon
 
 --
 
